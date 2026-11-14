@@ -108,8 +108,13 @@ di una compilazione da zero con il parallelismo corretto non è misurato.
 
 ## Usare
 
-1. Servono **Xorg con il driver NVIDIA** sulla GPU (anche senza schermo: `AllowEmptyInitialConfiguration`).
-   Non Xvfb: disegnerebbe in software.
+1. Servono **Xorg con il driver NVIDIA** sulla GPU. Non Xvfb: disegnerebbe in software. Senza monitor fisico
+   Xorg parte (`AllowEmptyInitialConfiguration`) ma il driver **non espone uscite RandR** (README del
+   driver), e Sunshine non trova lo schermo: serve un **monitor virtuale**, cioè `Option "ConnectedMonitor"
+   "DFP-1"` e `Option "CustomEDID" "DFP-1:/etc/X11/edid.bin"` nella sezione `Device` (EDID copiato dal
+   proprio monitor con `cat /sys/class/drm/card0-HDMI-A-1/edid`; `DFP-1` è il nome che il driver dà
+   all'uscita, lo dice il log di Xorg). Provato con il cavo HDMI scollegato, a caldo e a freddo, con
+   streaming da un'app Moonlight su Xbox. Dopo ogni riavvio di Xorg va riavviato anche il container.
 2. Immagine di esecuzione (il `.deb` va messo in una cartella come `sunshine.deb`):
    ```bash
    docker build -t sunshine-legacy -f build/Dockerfile.run <cartella>
@@ -120,11 +125,16 @@ di una compilazione da zero con il parallelismo corretto non è misurato.
    output_name = 2
    csrf_allowed_origins = https://192.168.1.3:47990
    min_threads = 6
+   system_tray = disabled
    ```
    - `min_threads`: Sunshine lo passa al convertitore colore (default 2). Su una CPU lenta come un
      FX-8320E con 2 thread il server produceva ~49 fps; con 6, ~53-56; poi i patch 0001 e 0004
      hanno portato a 60. Nel percorso software determina anche le *slice* dell'encoder (6 invece di 2).
-     Con `legacy.2` non ho provato valori più bassi: potrebbero bastare. l'id dello schermo da catturare. Senza, Sunshine prende il primo (spesso un'uscita non
+     Con `legacy.2` non ho provato valori più bassi: potrebbero bastare.
+   - `system_tray = disabled`: nel container non c'è una barra di sistema (nel log `Failed to create system
+     tray`) e in una partenza su circa sette Sunshine si è fermato con errore di segmentazione (codice 139)
+     proprio all'avvio dell'icona. Con l'opzione spenta non si è ripetuto in una prova: non è una conferma
+     che sia la causa. l'id dello schermo da catturare. Senza, Sunshine prende il primo (spesso un'uscita non
      collegata, es. `DVI-I-0`) e ripiega sull'intero desktop. Gli id sono nel log all'avvio:
      `Detected display: HDMI-0 (id: 2) ... connected: true`.
    - `csrf_allowed_origins`: gli indirizzi da cui si apre l'interfaccia web, come lista separata da
