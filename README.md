@@ -61,13 +61,16 @@ statistiche lette a mano dalla sovraimpressione di Moonlight, singole schermate,
 |---|---|---|---|
 | `legacy.1`, `min_threads` predefinito (2) | 49,1 | 22,9 / 46,0 / 34,3 ms | circa 138% |
 | `legacy.1`, `min_threads = 6` | 53-56 (riferiti) | non letta | circa 220% |
-| `legacy.2`, `min_threads = 6` (due schermate) | 59,99 e 60,14 | 11,9 / 18,7 / 16,8 ms e 16,0 / 28,0 / 21,3 ms | circa 135% (sessione 1080p, con altro carico sul server) |
+| `legacy.2`, `min_threads = 6`, app *Desktop* (schermo 1080p, flusso 1080p) | **59,99** | 11,9 / 18,7 / 16,8 ms | circa 135% (con altro carico sul server) |
+| `legacy.2`, `min_threads = 6`, app *Desktop 720p* (schermo 1280x720, flusso 1080p ridimensionato) | **60,14** | 16,0 / 28,0 / 21,3 ms | non misurata |
 
 In tutti i casi rete e client erano irrilevanti (2 ms di rete, 0% di frame persi, decodifica 0,3-0,6 ms): il
 limite era la conversione colore sul server. Le due schermate di `legacy.2` mostrano entrambe un flusso
-1920x1080; nel log ci sono sessioni sia di *Desktop* sia di *Desktop 720p* nello stesso periodo, ma non so
-dire a quale app appartenga ciascuna schermata. Entrambe reggono 60 fps. Sul server girava anche altro
-carico (`chromium`, `celery`, load average ~8), quindi i valori sono semmai prudenti. `nvidia-smi` sul 470 non espone l'utilizzo di GPU né dell'encoder (`N/A`).
+1920x1080: con *Desktop 720p* lo schermo del server era a 1280x720, quindi Sunshine ha ridimensionato a 1080p
+(con i flag originali di `swscale`, più lenti) e i 60 fps sono comunque tenuti, con circa 4,5 ms di latenza
+host in più (21,3 contro 16,8 ms in media). L'associazione schermata/app me l'ha confermata chi ha fatto la
+prova. Sul server girava anche altro carico (`chromium`, `celery`, load average ~8), quindi i valori sono
+semmai prudenti. `nvidia-smi` sul 470 non espone l'utilizzo di GPU né dell'encoder (`N/A`).
 
 **Non verificato:**
 - stabilità su sessioni lunghe e qualità percepita con contenuti reali (provato solo con `glxgears`);
@@ -158,8 +161,10 @@ di una compilazione da zero con il parallelismo corretto non è misurato.
      "prep-cmd": [ { "do": "xrandr --output HDMI-0 --mode 1280x720",
                      "undo": "xrandr --output HDMI-0 --mode 1920x1080" } ] }
    ```
-   Se Moonlight chiede un flusso a 1080p mentre lo schermo è a 720p, Sunshine dovrebbe ridimensionare e
-   quindi usare i flag originali di `swscale` (più CPU): è dedotto dal codice, non l'ho verificato.
+   Se Moonlight chiede un flusso a 1080p mentre lo schermo è a 720p, Sunshine ridimensiona (con i flag
+   originali di `swscale`, più CPU): provato, il flusso resta a 1080p e tiene 60 fps con 21,3 ms di
+   latenza host in media. Per un vero carico ridotto va chiesto a Moonlight anche un flusso a 720p: non
+   provato.
 
 Nel log si deve vedere:
 
