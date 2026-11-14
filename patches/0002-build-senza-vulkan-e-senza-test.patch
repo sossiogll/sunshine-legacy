@@ -1,0 +1,15 @@
+diff --git a/scripts/linux_build.sh b/scripts/linux_build.sh
+index 8767860..f8960cc 100755
+--- a/scripts/linux_build.sh
++++ b/scripts/linux_build.sh
+@@ -777,6 +777,10 @@ function run_step_cmake() {
+     fi
+   else
+     cmake_args+=("-DSUNSHINE_ENABLE_CUDA=OFF")
++    # Patch locale (GPU Kepler, driver 470): niente Vulkan Video, evita il sottomodulo annidato degli header
++    cmake_args+=("-DSUNSHINE_ENABLE_VULKAN=OFF")
++    # Patch locale: niente test unitari (compilarli esaurisce la memoria e non servono al pacchetto)
++    cmake_args+=("-DBUILD_TESTS=OFF")
+   fi
+ 
+   # Cmake stuff here

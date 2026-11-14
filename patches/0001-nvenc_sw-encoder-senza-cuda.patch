@@ -1,0 +1,90 @@
+diff --git a/src/video.cpp b/src/video.cpp
+index 995e8a7..cbba7c7 100644
+--- a/src/video.cpp
++++ b/src/video.cpp
+@@ -1296,6 +1296,77 @@ namespace video {
+   };
+ 
+ #if defined(__linux__) || defined(linux) || defined(__linux) || defined(__FreeBSD__)
++  /**
++   * @brief NVENC con frame in RAM, senza CUDA (patch locale per GPU Kepler, driver 470).
++   *
++   * Il percorso "nvenc" di Linux passa da CUDA (runtime e kernel, compilati per architetture
++   * 50 o successive): sulla GTX 660 (GK106, compute capability 3.0) non può funzionare. Qui si
++   * usa invece h264_nvenc di libavcodec con i frame YUV420P in memoria di sistema, come fa
++   * l'encoder "software" con libx264. La conversione colore resta sulla CPU (swscale).
++   */
++  encoder_t nvenc_sw {
++    "nvenc_sw"sv,
++    std::make_unique<encoder_platform_formats_avcodec>(
++      AV_HWDEVICE_TYPE_NONE,
++      AV_HWDEVICE_TYPE_NONE,
++      AV_PIX_FMT_NONE,
++      AV_PIX_FMT_YUV420P,
++      AV_PIX_FMT_YUV420P10,
++      AV_PIX_FMT_YUV444P,
++      AV_PIX_FMT_YUV444P10,
++      nullptr
++    ),
++    {
++      // AV1: la prima generazione di NVENC non lo supporta
++      {},
++      {},
++      {},
++      {},
++      {},
++      {},
++      {},
++      {},
++    },
++    {
++      // HEVC: idem
++      {},
++      {},
++      {},
++      {},
++      {},
++      {},
++      {},
++      {},
++    },
++    {
++      // Common options
++      {
++        {"delay"s, 0},
++        {"forced-idr"s, 1},
++        {"zerolatency"s, 1},
++        {"surfaces"s, 1},
++        {"cbr_padding"s, false},
++        {"preset"s, &config::video.nv_legacy.preset},
++        {"tune"s, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY},
++        {"rc"s, NV_ENC_PARAMS_RC_CBR},
++        {"coder"s, &config::video.nv_legacy.h264_coder},
++        {"multipass"s, 0},  // Kepler supporta solo "disabled"
++        {"spatial-aq"s, &config::video.nv_legacy.spatial_aq},
++      },
++      {
++        // SDR-specific options
++        {"profile"s, std::to_underlying(nv::profile_h264_e::high)},
++      },
++      {},  // HDR-specific options
++      {},  // YUV444 SDR-specific options
++      {},  // YUV444 HDR-specific options
++      {},  // Fallback options
++      "h264_nvenc"s,
++      {},  // capabilities
++    },
++    H264_ONLY | PARALLEL_ENCODING
++  };
++
+   /**
+    * @brief VA-API.
+    */
+@@ -1501,6 +1572,7 @@ namespace video {
+     &vulkan,
+   #endif
+     &vaapi,
++    &nvenc_sw,
+ #endif
+ #ifdef __APPLE__
+     &videotoolbox,

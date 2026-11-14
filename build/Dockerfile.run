@@ -1,0 +1,16 @@
+# Immagine di esecuzione: Ubuntu 24.04 + il .deb di sunshine-legacy.
+#
+#   docker build -t sunshine-legacy -f build/Dockerfile.run <cartella con sunshine.deb>
+#
+# Oltre alle dipendenze del pacchetto servono le librerie che Sunshine carica a runtime
+# (dlopen): senza, non trova nessuna cattura dello schermo e fallisce ogni encoder.
+FROM ubuntu:24.04
+ENV DEBIAN_FRONTEND=noninteractive
+COPY sunshine.deb /tmp/sunshine.deb
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends /tmp/sunshine.deb \
+         libx11-6 libxfixes3 libxrandr2 libxtst6 \
+         libxcb1 libxcb-shm0 libxcb-xfixes0 libxcb-randr0 libxcb-shape0 libxcb-xinerama0 \
+         libgbm1 libva2 libva-drm2 libvdpau1 libnuma1 libwayland-client0 libavahi-common3 \
+    && rm -rf /var/lib/apt/lists/* /tmp/sunshine.deb
+ENTRYPOINT ["sunshine"]

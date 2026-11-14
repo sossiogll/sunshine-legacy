@@ -1,0 +1,7 @@
+repo:     https://github.com/LizardByte/Sunshine
+commit:   949570130bceee7d0c4406f0daf94968ec6213aa
+versione: 2026.1113.212932 (immagine lizardbyte/sunshine:v2026.1113.212932-ubuntu-24.04)
+
+Tutti i patch in patches/ si applicano a questo commit (verificato con `git apply --check`
+su un checkout pulito). Per passare a un'altra versione: cambiare commit e versione in
+build/build.sh e ripetere la verifica dei patch.

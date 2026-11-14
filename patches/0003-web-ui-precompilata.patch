@@ -1,0 +1,20 @@
+diff --git a/cmake/targets/common.cmake b/cmake/targets/common.cmake
+index 0bdbea5..ed63a22 100644
+--- a/cmake/targets/common.cmake
++++ b/cmake/targets/common.cmake
+@@ -88,11 +88,11 @@ if (NPM_OFFLINE)
+     set(NPM_INSTALL_FLAGS "${NPM_INSTALL_FLAGS} --offline")
+ endif()
+ 
++# Patch locale: vite/rolldown usa istruzioni AVX2 che la CPU FX-8320E non ha ("Illegal instruction").
++# Si usa la web UI già compilata, presa dall'immagine ufficiale dello stesso commit.
+ add_custom_target(web-ui ALL
+-        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+-        COMMENT "Installing NPM Dependencies and Building the Web UI"
+-        COMMAND "${CMAKE_COMMAND}" -E env "${NPM_PATH}" ${NPM_COMMAND} "${NPM}" ci ${NPM_INSTALL_FLAGS}
+-        COMMAND "${CMAKE_COMMAND}" -E env "${NPM_PATH}" "SUNSHINE_BUILD_HOMEBREW=${NPM_BUILD_HOMEBREW}" "SUNSHINE_SOURCE_ASSETS_DIR=${NPM_SOURCE_ASSETS_DIR}" "SUNSHINE_ASSETS_DIR=${NPM_ASSETS_DIR}" ${NPM_COMMAND} "${NPM}" run build  # cmake-lint: disable=C0301
++        COMMENT "Web UI precompilata (patch locale)"
++        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_SOURCE_DIR}/webui-prebuilt" "${CMAKE_BINARY_DIR}/assets/web"
+         VERBATIM)
+ 
+ # docs
