@@ -48,12 +48,20 @@ Verificato:
 - con `encoder = nvenc_sw` Sunshine parte, rileva lo schermo e sceglie l'encoder hardware:
   `Found H.264 encoder: h264_nvenc [nvenc_sw]`;
 - `ffmpeg` con gli stessi header NVENC 11.1 cattura lo schermo di Xorg e codifica a 60 fps
-  (1080p, 10 Mbit/s) con file valido.
+  (1080p, 10 Mbit/s) con file valido;
+- **streaming reale in LAN con Moonlight 6.2.0**: pairing riuscito e `glxgears` (OpenGL sulla GPU) visibile
+  sul client (le rotelle girano). Nel log di Sunshine arrivano i pacchetti di movimento del mouse.
+
+**Misurato, in modo indicativo** (risoluzione e fps dello stream non registrati): durante lo stream il
+container usa circa **134-139% di CPU** (1,4 core di un FX-8320E), di cui due thread di sessione al 72% e
+al 49% e uno di codifica al 14%. È il costo della conversione colore su CPU. `nvidia-smi` sul 470 non
+espone l'utilizzo della GPU né dell'encoder (`N/A`).
 
 **Non verificato:**
-- uno streaming reale con un client Moonlight (pairing, latenza, qualità);
-- il carico di CPU della conversione colore;
+- latenza e fps misurati con precisione, qualità, stabilità su sessioni lunghe;
+- che il cursore del mouse si muova davvero sul server;
 - i gamepad virtuali (richiedono `/dev/uinput` e `/dev/uhid` nel container);
+- un client sul box Android TV a 32 bit;
 - che `build/build.sh` completo ripeta l'intera compilazione (ogni passo è stato eseguito a mano con gli
   stessi comandi; lo script è stato provato fino alla configurazione di CMake, vedi sotto);
 - altre GPU oltre alla GTX 660.
@@ -85,16 +93,36 @@ Tempi indicativi su un AMD FX-8320E a 8 core con `JOBS=1`: da una a più ore. Co
 3. `config/.config/sunshine/sunshine.conf` (nella cartella che si monta su `/config`):
    ```
    encoder = nvenc_sw
+   output_name = 2
+   csrf_allowed_origins = https://192.168.1.3:47990
    ```
-4. Avvio. `--network host` è necessario: senza, la cattura X11 non si collega (`Cannot open display`):
+   - `output_name`: l'id dello schermo da catturare. Senza, Sunshine prende il primo (spesso un'uscita non
+     collegata, es. `DVI-I-0`) e ripiega sull'intero desktop. Gli id sono nel log all'avvio:
+     `Detected display: HDMI-0 (id: 2) ... connected: true`.
+   - `csrf_allowed_origins`: gli indirizzi da cui si apre l'interfaccia web, come lista separata da
+     virgole. Senza, la pagina dà *CSRF Protection Error* e nel log compare l'origine bloccata.
+4. Avvio. Tutte le opzioni servono:
+   - `--network host`: senza, la cattura X11 non si collega (`Cannot open display`);
+   - `--ipc=host`: la cattura X11 usa la memoria condivisa con Xorg, che il container non vede. Senza,
+     lo stream parte ma l'immagine è **nera** e nel log si ripete `Could not get image reply`;
+   - `--device /dev/uinput --device /dev/uhid`: per i dispositivi di input virtuali (da root nel container).
    ```bash
-   docker run --rm --network host --runtime nvidia \
+   docker run -d --name sunshine-legacy --network host --ipc=host --runtime nvidia --user root \
      -e NVIDIA_VISIBLE_DEVICES=all -e NVIDIA_DRIVER_CAPABILITIES=all \
      -e DISPLAY=:0 -e XAUTHORITY=/xauth -v /run/xorg-nvidia.auth:/xauth:ro \
      -v /tmp/.X11-unix:/tmp/.X11-unix -v "$PWD/config:/config" -e HOME=/config \
-     --user root sunshine-legacy
+     --device /dev/uinput --device /dev/uhid sunshine-legacy
    ```
-   Interfaccia di configurazione e pairing: `https://<host>:47990`.
+5. Pairing. **Prima** apri `https://<host>:47990` e crea utente e password (chi arriva per primo la
+   sceglie), **poi** aggiungi il PC in Moonlight con l'IP e inserisci il PIN nella sezione *PIN*.
+   Finché non crea le credenziali Sunshine non salva il proprio ID (nel log: `sunshine_state.json
+   doesn't exist`), quindi un riavvio prima di quel momento lo cambia. Se in Moonlight il PC risulta
+   **offline** ("nessun indirizzo attivo") pur arrivando le richieste (nel log debug si vedono
+   `/serverinfo` ogni 5 secondi), il sospetto è una voce con il vecchio ID: eliminare il PC e
+   riaggiungerlo. È un'ipotesi, non confermata dai log di Moonlight.
+6. Il rilevamento automatico dell'host non l'ho provato: aggiungi il PC in Moonlight **per IP**. Per
+   vedere qualcosa serve un'app che disegni sul display (nell'elenco di Moonlight scegli *Desktop*);
+   *Steam Big Picture* richiede Steam, che non c'è.
 
 Nel log si deve vedere:
 
