@@ -158,9 +158,15 @@ di una compilazione da zero con il parallelismo corretto non è misurato.
    dell'uscita e le modalità che `xrandr` elenca per il proprio schermo:
    ```json
    { "name": "Desktop 720p",
-     "prep-cmd": [ { "do": "xrandr --output HDMI-0 --mode 1280x720",
-                     "undo": "xrandr --output HDMI-0 --mode 1920x1080" } ] }
+     "prep-cmd": [ { "do": "xrandr --output HDMI-0 --mode 1280x720 --rate 60",
+                     "undo": "xrandr --output HDMI-0 --mode 1920x1080 --rate 60" } ] }
    ```
+   **Indica sempre `--rate`.** `xrandr --mode 1920x1080` senza frequenza sceglie il primo modo con quel
+   nome, che su questo schermo è quello a 119,88 Hz (elencato prima del 60,00): lo schermo del server
+   resta a 120 Hz anche dopo la sessione, e un emulatore con la sincronia verticale attiva (RetroArch) va al
+   doppio della velocità. Nel README e nelle misure di `legacy.2` più sopra: sono state prese probabilmente
+   con lo schermo a 119,88 Hz (non controllato durante le sessioni); la frequenza dello stream la decide
+   comunque il client, che chiedeva 60 fps.
    Se Moonlight chiede un flusso a 1080p mentre lo schermo è a 720p, Sunshine ridimensiona (con i flag
    originali di `swscale`, più CPU): provato, il flusso resta a 1080p e tiene 60 fps con 21,3 ms di
    latenza host in media. Per un vero carico ridotto va chiesto a Moonlight anche un flusso a 720p: non
