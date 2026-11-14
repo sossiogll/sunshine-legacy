@@ -82,7 +82,7 @@ Tempi indicativi su un AMD FX-8320E a 8 core con `JOBS=1`: da una a più ore. Co
    ```bash
    docker build -t sunshine-legacy -f build/Dockerfile.run <cartella>
    ```
-3. `sunshine.conf`:
+3. `config/.config/sunshine/sunshine.conf` (nella cartella che si monta su `/config`):
    ```
    encoder = nvenc_sw
    ```
@@ -91,7 +91,7 @@ Tempi indicativi su un AMD FX-8320E a 8 core con `JOBS=1`: da una a più ore. Co
    docker run --rm --network host --runtime nvidia \
      -e NVIDIA_VISIBLE_DEVICES=all -e NVIDIA_DRIVER_CAPABILITIES=all \
      -e DISPLAY=:0 -e XAUTHORITY=/xauth -v /run/xorg-nvidia.auth:/xauth:ro \
-     -v /tmp/.X11-unix:/tmp/.X11-unix -v ./config:/config -e HOME=/config \
+     -v /tmp/.X11-unix:/tmp/.X11-unix -v "$PWD/config:/config" -e HOME=/config \
      --user root sunshine-legacy
    ```
    Interfaccia di configurazione e pairing: `https://<host>:47990`.
