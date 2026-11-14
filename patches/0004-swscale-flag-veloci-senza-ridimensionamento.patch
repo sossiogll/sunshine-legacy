@@ -1,0 +1,17 @@
+diff --git a/src/video.cpp b/src/video.cpp
+index 83b9dfc..dd99ecb 100644
+--- a/src/video.cpp
++++ b/src/video.cpp
+@@ -376,7 +376,11 @@ namespace video {
+     av_dict_set_int(&options, "dstw", sws_output_frame->width, 0);
+     av_dict_set_int(&options, "dsth", sws_output_frame->height, 0);
+     av_dict_set_int(&options, "dst_format", sws_output_frame->format, 0);
+-    av_dict_set_int(&options, "sws_flags", SWS_LANCZOS | SWS_ACCURATE_RND, 0);
++    // Patch locale (sunshine-legacy): Lanczos e arrotondamento accurato servono solo se si ridimensiona.
++    // Senza ridimensionamento disattivano i percorsi SIMD veloci e costano circa il 25% di CPU in piu'
++    // (misurato con ffmpeg a 1080p), che sulla conversione colore su CPU limita gli fps.
++    const bool sws_resizing = sws_input_frame->width != sws_output_frame->width || sws_input_frame->height != sws_output_frame->height;
++    av_dict_set_int(&options, "sws_flags", sws_resizing ? (SWS_LANCZOS | SWS_ACCURATE_RND) : SWS_BILINEAR, 0);
+     av_dict_set_int(&options, "threads", config::video.min_threads, 0);
+ 
+     auto status = av_opt_set_dict(sws.get(), &options);

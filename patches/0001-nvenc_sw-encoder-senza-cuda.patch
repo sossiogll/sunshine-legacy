@@ -1,8 +1,8 @@
 diff --git a/src/video.cpp b/src/video.cpp
-index 995e8a7..cbba7c7 100644
+index 995e8a7..83b9dfc 100644
 --- a/src/video.cpp
 +++ b/src/video.cpp
-@@ -1296,6 +1296,77 @@ namespace video {
+@@ -1296,6 +1296,76 @@ namespace video {
    };
  
  #if defined(__linux__) || defined(linux) || defined(__linux) || defined(__FreeBSD__)
@@ -54,7 +54,6 @@ index 995e8a7..cbba7c7 100644
 +        {"delay"s, 0},
 +        {"forced-idr"s, 1},
 +        {"zerolatency"s, 1},
-+        {"surfaces"s, 1},
 +        {"cbr_padding"s, false},
 +        {"preset"s, &config::video.nv_legacy.preset},
 +        {"tune"s, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY},
@@ -80,7 +79,7 @@ index 995e8a7..cbba7c7 100644
    /**
     * @brief VA-API.
     */
-@@ -1501,6 +1572,7 @@ namespace video {
+@@ -1501,6 +1571,7 @@ namespace video {
      &vulkan,
    #endif
      &vaapi,

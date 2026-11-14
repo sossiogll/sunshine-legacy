@@ -94,7 +94,9 @@ docker run --rm --name sunshine-legacy-build \
     ./scripts/linux_build.sh --step=cmake --skip-cuda --sudo-off \
       --publisher-name="sunshine-legacy" --publisher-website="" --publisher-issue-url=""
     [[ "$STOP_AFTER" == "configure" ]] && exit 0
-    ./scripts/linux_build.sh --step=build --skip-cuda --sudo-off --num-processors="$JOBS"
+    # "linux_build.sh --step=build" lancia ninja SENZA -j (--num-processors vale solo per doxygen):
+    # si chiama ninja direttamente, altrimenti JOBS non limita nulla e la memoria finisce.
+    ninja -C build -j"$JOBS"
     ./scripts/linux_build.sh --step=package --skip-cuda --sudo-off
   '
 [[ "$STOP_AFTER" == "configure" ]] && { echo "fermo dopo: configure"; exit 0; }

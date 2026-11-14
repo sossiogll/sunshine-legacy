@@ -27,16 +27,18 @@ percorso CUDA di Sunshine che non può girare. Questo repo aggiunge un encoder c
 
 | Patch | Cosa fa |
 |---|---|
-| [`0001-nvenc_sw-encoder-senza-cuda.patch`](patches/0001-nvenc_sw-encoder-senza-cuda.patch) | Aggiunge l'encoder **`nvenc_sw`**: `h264_nvenc` di libavcodec con frame YUV420P in memoria di sistema, come fa l'encoder `software` con libx264. Solo H.264 (la prima generazione di NVENC non fa HEVC né AV1). `multipass` fissato a `disabled`, l'unica modalità che Kepler accetta |
+| [`0001-nvenc_sw-encoder-senza-cuda.patch`](patches/0001-nvenc_sw-encoder-senza-cuda.patch) | Aggiunge l'encoder **`nvenc_sw`**: `h264_nvenc` di libavcodec con frame YUV420P in memoria di sistema, come fa l'encoder `software` con libx264. Solo H.264 (la prima generazione di NVENC non fa HEVC né AV1). `multipass` fissato a `disabled`, l'unica modalità che Kepler accetta. **Senza** `surfaces = 1` (che l'encoder CUDA ufficiale usa): con frame in RAM un solo buffer d'ingresso fa serializzare caricamento e codifica |
 | [`0002-build-senza-vulkan-e-senza-test.patch`](patches/0002-build-senza-vulkan-e-senza-test.patch) | Nella build senza CUDA spegne Vulkan Video (non serve su Kepler e richiede un sottomodulo annidato) e i test unitari (compilarli esaurisce la memoria) |
 | [`0003-web-ui-precompilata.patch`](patches/0003-web-ui-precompilata.patch) | Usa la web UI già compilata invece di lanciare Vite, che su CPU senza AVX2 (es. AMD FX) termina con `Illegal instruction` |
+| [`0004-swscale-flag-veloci-senza-ridimensionamento.patch`](patches/0004-swscale-flag-veloci-senza-ridimensionamento.patch) | Sunshine converte il colore con `SWS_LANCZOS \| SWS_ACCURATE_RND`, che disattiva i percorsi SIMD veloci (circa +25% di CPU, misurato con ffmpeg a 1080p). Senza ridimensionamento ora usa `SWS_BILINEAR`; con un ridimensionamento reale restano i flag originali. Effetto collaterale possibile: resa dei bordi di colore meno raffinata |
 
 La build è senza CUDA (`--skip-cuda`). Cosa si perde: la cattura NvFBC e il percorso "NVENC da memoria
 GPU", che usano i kernel CUDA di Sunshine, non eseguibili su queste schede (non ho provato NvFBC
 separatamente).
 
-**Costo:** la conversione colore resta sulla CPU (swscale), quindi la codifica usa più CPU di
-un Sunshine con CUDA. Non è ancora misurato quanto.
+**Costo:** la conversione colore resta sulla CPU (swscale), quindi la codifica usa più CPU di un Sunshine
+con CUDA (non confrontato). Per questo contano due cose: il numero di thread (`min_threads`, vedi *Usare*) e i
+flag di `swscale` (patch 0004). I valori misurati sono nella sezione seguente.
 
 ## Stato: cosa è verificato e cosa no
 
@@ -52,18 +54,30 @@ Verificato:
 - **streaming reale in LAN con Moonlight 6.2.0**: pairing riuscito e `glxgears` (OpenGL sulla GPU) visibile
   sul client (le rotelle girano). Nel log di Sunshine arrivano i pacchetti di movimento del mouse.
 
-**Misurato, in modo indicativo** (risoluzione e fps dello stream non registrati): durante lo stream il
-container usa circa **134-139% di CPU** (1,4 core di un FX-8320E), di cui due thread di sessione al 72% e
-al 49% e uno di codifica al 14%. È il costo della conversione colore su CPU. `nvidia-smi` sul 470 non
-espone l'utilizzo della GPU né dell'encoder (`N/A`).
+**Misurato** (2026-11-13/14, `glxgears` a 1920x1080, Moonlight 6.2.0 su un portatile in LAN, 15 Mbit/s;
+statistiche lette a mano dalla sovraimpressione di Moonlight, singole schermate, non medie lunghe):
+
+| Configurazione | fps | Latenza host min/max/media | CPU del container |
+|---|---|---|---|
+| `legacy.1`, `min_threads` predefinito (2) | 49,1 | 22,9 / 46,0 / 34,3 ms | circa 138% |
+| `legacy.1`, `min_threads = 6` | 53-56 (riferiti) | non letta | circa 220% |
+| `legacy.2`, `min_threads = 6` (due schermate) | 59,99 e 60,14 | 11,9 / 18,7 / 16,8 ms e 16,0 / 28,0 / 21,3 ms | circa 135% (sessione 1080p, con altro carico sul server) |
+
+In tutti i casi rete e client erano irrilevanti (2 ms di rete, 0% di frame persi, decodifica 0,3-0,6 ms): il
+limite era la conversione colore sul server. Le due schermate di `legacy.2` mostrano entrambe un flusso
+1920x1080; nel log ci sono sessioni sia di *Desktop* sia di *Desktop 720p* nello stesso periodo, ma non so
+dire a quale app appartenga ciascuna schermata. Entrambe reggono 60 fps. Sul server girava anche altro
+carico (`chromium`, `celery`, load average ~8), quindi i valori sono semmai prudenti. `nvidia-smi` sul 470 non espone l'utilizzo di GPU né dell'encoder (`N/A`).
 
 **Non verificato:**
-- latenza e fps misurati con precisione, qualità, stabilità su sessioni lunghe;
+- stabilità su sessioni lunghe e qualità percepita con contenuti reali (provato solo con `glxgears`);
 - che il cursore del mouse si muova davvero sul server;
 - i gamepad virtuali (richiedono `/dev/uinput` e `/dev/uhid` nel container);
+- **l'audio: non funziona.** Nel container non c'è un server PulseAudio
+  (`Couldn't connect to pulseaudio: Access denied ... The stream will not have audio`);
 - un client sul box Android TV a 32 bit;
-- che `build/build.sh` completo ripeta l'intera compilazione (ogni passo è stato eseguito a mano con gli
-  stessi comandi; lo script è stato provato fino alla configurazione di CMake, vedi sotto);
+- una compilazione **da zero** con il parallelismo corretto (`build/build.sh` ha prodotto il pacchetto
+  `legacy.2`, ma ripartendo da oggetti già compilati: circa 6 minuti; il tempo da zero non è misurato);
 - altre GPU oltre alla GTX 660.
 
 ## Compilare
@@ -75,12 +89,19 @@ ufficiale dello stesso commit e compila in un container con limiti di memoria:
 build/build.sh                       # tutto, produce dist/*.deb e il checksum
 STOP_AFTER=prepare   build/build.sh  # solo sorgenti, patch e web UI
 STOP_AFTER=configure build/build.sh  # fino alla configurazione di CMake
-MEM=9g SWAP=11g JOBS=3 build/build.sh
+MEM=6g SWAP=9g JOBS=2 build/build.sh # parallelismo e memoria (valori usati per legacy.2)
 build/build.sh clean                 # i file del container sono di root: si tolgono con Docker
 ```
 
-Tempi indicativi su un AMD FX-8320E a 8 core con `JOBS=1`: da una a più ore. Con `JOBS=3` serve circa
-9 GB di RAM libera; con meno, `cc1plus` viene ucciso (`Killed signal terminated program cc1plus`).
+**Attenzione al parallelismo.** Lo script ufficiale `linux_build.sh --step=build` lancia `ninja` **senza
+`-j`**: l'opzione `--num-processors` vale solo per doxygen. Per questo `build.sh` chiama `ninja -j$JOBS`
+direttamente. Con il comportamento ufficiale (circa 10 compilazioni insieme su 8 core) `cc1plus` viene ucciso
+per memoria (`Killed signal terminated program cc1plus`) anche con limiti di 5 e 9 GB: non servono quantità
+precise di RAM, ma un limite ai job. Una versione precedente di questo README indicava tempi e RAM per
+"`JOBS=1`" e "`JOBS=3`": non erano mai stati misurati con quel parallelismo, ed erano sbagliati.
+
+Misurato: una ripresa da oggetti già compilati con `JOBS=2`, `MEM=6g` ha richiesto circa 6 minuti. Il tempo
+di una compilazione da zero con il parallelismo corretto non è misurato.
 
 ## Usare
 
@@ -95,8 +116,12 @@ Tempi indicativi su un AMD FX-8320E a 8 core con `JOBS=1`: da una a più ore. Co
    encoder = nvenc_sw
    output_name = 2
    csrf_allowed_origins = https://192.168.1.3:47990
+   min_threads = 6
    ```
-   - `output_name`: l'id dello schermo da catturare. Senza, Sunshine prende il primo (spesso un'uscita non
+   - `min_threads`: Sunshine lo passa al convertitore colore (default 2). Su una CPU lenta come un
+     FX-8320E con 2 thread il server produceva ~49 fps; con 6, ~53-56; poi i patch 0001 e 0004
+     hanno portato a 60. Nel percorso software determina anche le *slice* dell'encoder (6 invece di 2).
+     Con `legacy.2` non ho provato valori più bassi: potrebbero bastare. l'id dello schermo da catturare. Senza, Sunshine prende il primo (spesso un'uscita non
      collegata, es. `DVI-I-0`) e ripiega sull'intero desktop. Gli id sono nel log all'avvio:
      `Detected display: HDMI-0 (id: 2) ... connected: true`.
    - `csrf_allowed_origins`: gli indirizzi da cui si apre l'interfaccia web, come lista separata da
@@ -123,6 +148,18 @@ Tempi indicativi su un AMD FX-8320E a 8 core con `JOBS=1`: da una a più ore. Co
 6. Il rilevamento automatico dell'host non l'ho provato: aggiungi il PC in Moonlight **per IP**. Per
    vedere qualcosa serve un'app che disegni sul display (nell'elenco di Moonlight scegli *Desktop*);
    *Steam Big Picture* richiede Steam, che non c'è.
+7. **App a bassa risoluzione.** L'app *Low Res Desktop* di esempio di Sunshine esegue
+   `xrandr --output HDMI-1 --mode 1920x1080`: sul nostro server fallisce (l'uscita è `HDMI-0` e nel
+   container non c'era `xrandr`), e quando un comando di preparazione fallisce Sunshine annulla l'avvio.
+   L'immagine ora include `xrandr` (pacchetto `x11-xserver-utils`); in `apps.json` si imposta, con il nome
+   dell'uscita e le modalità che `xrandr` elenca per il proprio schermo:
+   ```json
+   { "name": "Desktop 720p",
+     "prep-cmd": [ { "do": "xrandr --output HDMI-0 --mode 1280x720",
+                     "undo": "xrandr --output HDMI-0 --mode 1920x1080" } ] }
+   ```
+   Se Moonlight chiede un flusso a 1080p mentre lo schermo è a 720p, Sunshine dovrebbe ridimensionare e
+   quindi usare i flag originali di `swscale` (più CPU): è dedotto dal codice, non l'ho verificato.
 
 Nel log si deve vedere:
 
